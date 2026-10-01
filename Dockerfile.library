@@ -1,0 +1,21 @@
+ARG ENVOY_VERSION=v1.39-latest
+# Global, so it is in scope for the FROM of the final stage.
+ARG BASE_IMAGE=scratch
+
+FROM golang:1.27.1 AS go_builder
+# Envoy commit whose SDK to build against; empty means use the committed go.mod.
+# `make build-docker` resolves this from ENVOY_VERSION. A replace is needed rather
+# than a require because composer's own requirement would win under MVS.
+ARG SDK_VERSION=
+# Build the Go library.
+RUN mkdir /build
+COPY ./ /build
+WORKDIR /build
+RUN SDK=github.com/envoyproxy/envoy/source/extensions/dynamic_modules; \
+	test -z "${SDK_VERSION}" || { go mod edit -replace "$SDK=$SDK@${SDK_VERSION}" && go mod tidy; }
+RUN	CGO_ENABLED=1 GOARCH=amd64 go build -buildmode=c-shared -o /build/libcoraza_waf.so ./main.go
+
+##### Build the OCI containing just the library #####
+FROM ${BASE_IMAGE}
+
+COPY --from=go_builder /build/libcoraza_waf.so /libcoraza_waf.so
