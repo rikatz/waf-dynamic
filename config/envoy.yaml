@@ -1,0 +1,47 @@
+static_resources:
+  listeners:
+    - name: listener_0
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 10000
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: local_service
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            prefix: "/"
+                          direct_response:
+                            status: 200
+                            body:
+                              inline_string: "Hello from Envoy!"
+                http_filters:
+                  - name: envoy.filters.http.dynamic_modules
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.dynamic_modules.v3.DynamicModuleFilter
+                      dynamic_module_config:
+                        name: coraza_waf
+                      filter_name: coraza-waf
+                      # Struct is serialized to JSON and handed to the module as-is.
+                      filter_config:
+                        "@type": type.googleapis.com/google.protobuf.Struct
+                        value:
+                          directives:
+                            - "Include @coraza.conf"
+                            - "Include @crs-setup.conf"
+                            - "Include @owasp_crs/*.conf"
+                            # @coraza.conf ships DetectionOnly; override it to actually block.
+                            - "SecRuleEngine On"
+
+                  # 2. Router Filter
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
