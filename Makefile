@@ -22,4 +22,10 @@ build-docker: build-docker-library ## Build the image against ENVOY_VERSION, pin
 	@echo "Envoy $(ENVOY_VERSION): library from $(IMG_LIBRARY)"
 	docker build --build-arg ENVOY_VERSION=$(ENVOY_VERSION) --build-arg LIBRARY_IMAGE=$(IMG_LIBRARY) -t $(IMG) .
 
+.PHONY: run-demo
+run-demo: build-docker ## Start Envoy with the demo config and mounted Coraza rule.
+	docker run --rm -p 10000:10000 \
+		-v "$(CURDIR)/config/envoy-demo.yaml:/etc/envoy/envoy.yaml:ro" \
+		-v "$(CURDIR)/config/demo-rules.conf:/etc/coraza/rules/demo-rules.conf:ro" \
+		$(IMG)
 
